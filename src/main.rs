@@ -3,13 +3,23 @@ use std::fs;
 #[allow(unused_imports)]
 use std::io::{self, Write};
 use std::os::unix::fs::PermissionsExt;
+use std::os::unix::process::CommandExt;
 use std::path::Path;
+use std::process::Command as ProcessCommand;
 
 const BUILT_IN_COMMANDS: [&str; 3] = ["echo", "exit", "type"];
 enum Command {
     ExitCommand,
-    EchoCommand { display_string: String },
-    TypeCommand { command_name: String },
+    EchoCommand { 
+        display_string: String,
+    },
+    TypeCommand { 
+        command_name: String, 
+    },
+    ExternalCommand {
+        command_name: String,
+        args: Vec<String>,
+    },
     CommandNotFound,
 }
 
@@ -33,7 +43,15 @@ impl Command {
                 };
             }
         }
-        Self::CommandNotFound
+        let parts: Vec<&str> = input.split_whitespace().collect();
+        if parts.is_empty() {
+            return Self::CommandNotFound;
+        }
+
+        let command_name = parts[0].to_string();
+        let args: Vec<String> = parts[1..].iter().map(|s| s.to_string()).collect();
+
+        Self::ExternalCommand { command_name, args }
     }
 }
 
@@ -75,8 +93,27 @@ fn main() {
                     println!("{}: not found", command_name)
                 }
             }
+            Command::ExternalCommand { command_name, args } => {
+                if let Some(full_path) = find_executable(&command_name) {
+                    let mut cmd = ProcessCommand::new(full_path);
+                    cmd.arg0(&command_name);
+                    for arg in &args {
+                        cmd.arg(arg);
+                    }
+
+                    match cmd.status() {
+                        Ok(_) => {}
+                        Err(_) => {
+                            println!("{}: command not found", input.trim());
+                        }
+                    }
+                } else {
+                    println!("{}: command not found", input.trim());
+                }
+            }
             Command::CommandNotFound => println!("{}: command not found", input.trim()),
         }
     }
+
     
 }
