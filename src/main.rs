@@ -1,5 +1,7 @@
 #[allow(unused_imports)]
 use std::io::{self, Write};
+use std::env;
+use std::path::Path;
 
 const BUILT_IN_COMMANDS: [&str; 3] = ["echo", "exit", "type"];
 enum Command {
@@ -54,6 +56,14 @@ fn main() {
                 }
             }
             Command::CommandNotFound => println!("{}: command not found", input.trim()),
+        }
+        let path = env::var("PATH").unwrap_or_default();
+        let paths = path.split(':');
+        for dir in paths {
+            let full_path = Path::new(dir).join(command_name);
+        }
+        if full_path.exits() {
+            return Some(full_path);
         }
     }
 }
