@@ -1,6 +1,8 @@
+use std::env;
+use std::fs;
 #[allow(unused_imports)]
 use std::io::{self, Write};
-use std::env;
+use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
 const BUILT_IN_COMMANDS: [&str; 3] = ["echo", "exit", "type"];
@@ -35,35 +37,46 @@ impl Command {
     }
 }
 
+fn find_executable(command_name: &str) -> Option<String> {
+    if let Ok(path) = env::var("PATH") {
+        for dir in path.split(':') {
+            let full_path = Path::new(dir).join(command_name);
+            if full_path.exists() {
+                if let Ok(metadata) = fs::metadata(&full_path) {
+                    if metadata.permissions().mode() & 0o111 != 0 {
+                        return Some(full_path.to_string_lossy().to_string());
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
 fn main() {
     loop {
         print!("$ ");
         io::stdout().flush().unwrap();
-        
+
         let stdin = io::stdin();
         let mut input = String::new();
         stdin.read_line(&mut input).unwrap();
         let command = Command::from_input(&input);
-        
+
         match command {
             Command::ExitCommand => break,
             Command::EchoCommand { display_string } => println!("{}", display_string),
             Command::TypeCommand { command_name } => {
                 if BUILT_IN_COMMANDS.contains(&command_name.as_str()) {
                     println!("{} is a shell builtin", command_name);
+                } else if let Some(full_path) = find_executable(&command_name) {
+                    println!("{} is {}", command_name, full_path);
                 } else {
                     println!("{}: not found", command_name)
                 }
             }
             Command::CommandNotFound => println!("{}: command not found", input.trim()),
         }
-        let path = env::var("PATH").unwrap_or_default();
-        let paths = path.split(':');
-        for dir in paths {
-            let full_path = Path::new(dir).join(command_name);
-        }
-        if full_path.exits() {
-            return Some(full_path);
-        }
     }
+    
 }
