@@ -7,7 +7,7 @@ use std::os::unix::process::CommandExt;
 use std::path::Path;
 use std::process::Command as ProcessCommand;
 
-const BUILT_IN_COMMANDS: [&str; 3] = ["echo", "exit", "type"];
+const BUILT_IN_COMMANDS: [&str; 4] = ["echo", "exit", "type", "pwd"];
 enum Command {
     ExitCommand,
     EchoCommand { 
@@ -16,6 +16,7 @@ enum Command {
     TypeCommand { 
         command_name: String, 
     },
+    PwdCommand,
     ExternalCommand {
         command_name: String,
         args: Vec<String>,
@@ -42,6 +43,9 @@ impl Command {
                     command_name: input["type ".len()..].to_string(),
                 };
             }
+        }
+        if input == "pwd" {
+            return Self::PwdCommand;
         }
         let parts: Vec<&str> = input.split_whitespace().collect();
         if parts.is_empty() {
@@ -93,6 +97,10 @@ fn main() {
                     println!("{}: not found", command_name)
                 }
             }
+            Command::PwdCommand => match env::current_dir() {
+                Ok(dir) => println!("{}", dir.display()),
+                Err(_) => println!("pwd: error retrieving current directory"),
+            },
             Command::ExternalCommand { command_name, args } => {
                 if let Some(full_path) = find_executable(&command_name) {
                     let mut cmd = ProcessCommand::new(full_path);
