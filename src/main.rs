@@ -2,12 +2,13 @@ use std::env;
 use std::fs;
 #[allow(unused_imports)]
 use std::io::{self, Write};
+use std::io::ErrorKind;
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::process::CommandExt;
 use std::path::Path;
 use std::process::Command as ProcessCommand;
 
-const BUILT_IN_COMMANDS: [&str; 4] = ["echo", "exit", "type", "pwd"];
+const BUILT_IN_COMMANDS: [&str; 5] = ["echo", "exit", "type", "pwd", "cd"];
 enum Command {
     ExitCommand,
     EchoCommand { 
@@ -17,6 +18,9 @@ enum Command {
         command_name: String, 
     },
     PwdCommand,
+    CdCommand {
+        target: Option<String>,
+    },
     ExternalCommand {
         command_name: String,
         args: Vec<String>,
@@ -46,6 +50,17 @@ impl Command {
         }
         if input == "pwd" {
             return Self::PwdCommand;
+        }
+        if input == "cd" {
+            return Self::CdCommand { target: None };
+        }
+        if let Some(pos) = input.find("cd ") {
+            if pos == 0 {
+                let target = input["cd ".len()..].trim().to_string();
+                return Self::CdCommand {
+                    target: if target.is_empty() { None } else { Some(target) },
+                };
+            }
         }
         let parts: Vec<&str> = input.split_whitespace().collect();
         if parts.is_empty() {
@@ -101,6 +116,20 @@ fn main() {
                 Ok(dir) => println!("{}", dir.display()),
                 Err(_) => println!("pwd: error retrieving current directory"),
             },
+            Command::CdCommand { target } => {
+                let resolved = match target {
+                    None => env::var("HOME").unwrap_or_else(|_| "/".to_string()),
+                    Some(path) if path == "~" => env::var("HOME").unwrap_or_else(|_| "/".to_string()),
+                    Some(path) => path,
+                };
+                if let Err(err) = env::set_current_dir(&resolved) {
+                    let msg = match err.kind() {
+                        ErrorKind::NotFound => "No such file or directory",
+                        _ => "Error",
+                    };
+                    println!("cd: {}: {}", resolved, msg);
+                }
+            }
             Command::ExternalCommand { command_name, args } => {
                 if let Some(full_path) = find_executable(&command_name) {
                     let mut cmd = ProcessCommand::new(full_path);
