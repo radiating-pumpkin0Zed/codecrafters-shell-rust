@@ -28,47 +28,74 @@ enum Command {
     CommandNotFound,
 }
 
+fn split_with_single_quotes(input: &str) -> Vec<String> {
+    let mut parts = Vec::new();
+    let mut current = String::new();
+    let mut in_single_quotes = false;
+
+    for ch in input.chars() {
+        if ch == '\'' {
+            in_single_quotes = !in_single_quotes;
+            continue;
+        }
+
+        if ch.is_whitespace() && !in_single_quotes {
+            if !current.is_empty() {
+                parts.push(std::mem::take(&mut current));
+            }
+            continue;
+        }
+
+        current.push(ch);
+    }
+
+    if !current.is_empty() {
+        parts.push(current);
+    }
+
+    parts
+}
+
 impl Command {
     fn from_input(input: &str) -> Self {
         let input = input.trim();
-        if input == "exit" {
-            return Self::ExitCommand;
-        };
-        if let Some(pos) = input.find("echo ") {
-            if pos == 0 {
-                return Self::EchoCommand {
-                    display_string: input["echo ".len()..].to_string(),
-                };
-            }
-        }
-        if let Some(pos) = input.find("type ") {
-            if pos == 0 {
-                return Self::TypeCommand {
-                    command_name: input["type ".len()..].to_string(),
-                };
-            }
-        }
-        if input == "pwd" {
-            return Self::PwdCommand;
-        }
-        if input == "cd" {
-            return Self::CdCommand { target: None };
-        }
-        if let Some(pos) = input.find("cd ") {
-            if pos == 0 {
-                let target = input["cd ".len()..].trim().to_string();
-                return Self::CdCommand {
-                    target: if target.is_empty() { None } else { Some(target) },
-                };
-            }
-        }
-        let parts: Vec<&str> = input.split_whitespace().collect();
+        let parts = split_with_single_quotes(input);
+
         if parts.is_empty() {
             return Self::CommandNotFound;
         }
 
-        let command_name = parts[0].to_string();
-        let args: Vec<String> = parts[1..].iter().map(|s| s.to_string()).collect();
+        if parts[0] == "echo" {
+            return Self::EchoCommand {
+                display_string: parts[1..].join(" "),
+            };
+        }
+
+        if input == "exit" {
+            return Self::ExitCommand;
+        };
+        if parts[0] == "type" {
+            if parts.len() > 1 {
+                return Self::TypeCommand {
+                    command_name: parts[1].clone(),
+                };
+            }
+            return Self::CommandNotFound;
+        }
+        if parts[0] == "pwd" {
+            return Self::PwdCommand;
+        }
+        if parts[0] == "cd" && parts.len() == 1 {
+            return Self::CdCommand { target: None };
+        }
+        if parts[0] == "cd" {
+            return Self::CdCommand {
+                target: Some(parts[1].clone()),
+            };
+        }
+
+        let command_name = parts[0].clone();
+        let args: Vec<String> = parts[1..].to_vec();
 
         Self::ExternalCommand { command_name, args }
     }
