@@ -28,18 +28,23 @@ enum Command {
     CommandNotFound,
 }
 
-fn split_with_single_quotes(input: &str) -> Vec<String> {
+fn split_with_quotes(input: &str) -> Vec<String> {
     let mut parts = Vec::new();
     let mut current = String::new();
     let mut in_single_quotes = false;
+    let mut in_double_quotes = false;
 
     for ch in input.chars() {
-        if ch == '\'' {
+        if ch == '\'' && !in_double_quotes {
             in_single_quotes = !in_single_quotes;
             continue;
         }
+        if ch == '"' && !in_single_quotes {
+            in_double_quotes = !in_double_quotes;
+            continue;
+        }
 
-        if ch.is_whitespace() && !in_single_quotes {
+        if ch.is_whitespace() && !in_single_quotes && !in_double_quotes {
             if !current.is_empty() {
                 parts.push(std::mem::take(&mut current));
             }
@@ -59,7 +64,7 @@ fn split_with_single_quotes(input: &str) -> Vec<String> {
 impl Command {
     fn from_input(input: &str) -> Self {
         let input = input.trim();
-        let parts = split_with_single_quotes(input);
+        let parts = split_with_quotes(input);
 
         if parts.is_empty() {
             return Self::CommandNotFound;
